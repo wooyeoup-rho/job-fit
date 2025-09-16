@@ -1,8 +1,10 @@
 import tkinter
+from tkinter import filedialog
 from tkinter.ttk import *
 import sv_ttk
 import pywinstyles, sys
 import customtkinter
+from pypdf import PdfReader
 
 FONT = ("Calibri", 18)
 
@@ -35,15 +37,46 @@ def switch_themes():
 
     theme_switch.configure(text=button_text, text_color=button_text_color, bg_color=button_bg_color)
 
+def attach_resume():
+    file_window = tkinter.Tk()
+    file_window.withdraw()
+
+    file_path = filedialog.askopenfilename(
+        title = "Select a File",
+        initialdir = "/",
+        filetypes = (("PDF files", "*.pdf"), ("All files", "*.*"))
+    )
+
+    file_window.destroy()
+
+    if file_path and (".pdf" in file_path):
+        try:
+            reader = PdfReader(file_path)
+            if reader.metadata:
+                print(reader.metadata)
+                resume_label.config(text=reader.metadata.title, foreground="gray")
+
+            page = reader.pages[0]
+            print(page.extract_text(extraction_mode="layout"))
+
+            print(reader.pages)
+
+        except Exception as e:
+            print(f"Error reading PDF or extracting title: {e}")
+            return None
+
+        return file_path
+    else:
+        resume_label.config(text="Error: Attach a PDF file", foreground="red")
+        return None
 
 if __name__ == "__main__":
     window = tkinter.Tk()
     window.title("Job Fit")
     window.config(padx=20, pady=20)
-    window.minsize(600,800)
     window.resizable(False, False)
 
-    for i in range(6):
+    for i in range(8):
         window.rowconfigure(i, pad=20)
 
     # INPUT
@@ -51,27 +84,34 @@ if __name__ == "__main__":
     theme_switch = customtkinter.CTkSwitch(window, text="Dark mode", command=switch_themes, variable=switch_var, onvalue=True, offvalue=False, border_width=2, bg_color="#1c1c1c", text_color="white", border_color="gray", fg_color="yellow", progress_color="#292929", button_color="gray", button_hover_color="gray")
     theme_switch.grid(row=0, column=1)
 
-    resume_button = Button(window, text="Attach Resume")
+    resume_button = Button(window, text="Attach Resume", command=attach_resume)
     resume_button.grid(row=0, column=0, sticky="w")
 
     resume_label = Label(window, text="Sample text", foreground="gray")
     resume_label.grid(row=1, column=0, columnspan=2, sticky="w")
 
-    details_label = Label(window, text="Additional Information:")
-    details_label.grid(row=2, column=0, columnspan=2, sticky="w")
+    job_description_label = Label(window, text="Job Description:")
+    job_description_label.grid(row=2, column=0, columnspan=2, sticky="w")
 
-    details_text = customtkinter.CTkTextbox(window, font=FONT, height=200, width=560, padx=15, pady=15,activate_scrollbars=True, corner_radius=0, border_spacing=0)
-    details_text.grid(row=3, column=0, columnspan=2, sticky="w")
+    job_description_text = customtkinter.CTkTextbox(window, font=FONT, height=100, width=560, padx=15, pady=15,
+                                            activate_scrollbars=True, corner_radius=0, border_spacing=0)
+    job_description_text.grid(row=3, column=0, columnspan=2, sticky="w")
+
+    details_label = Label(window, text="Additional Information:")
+    details_label.grid(row=4, column=0, columnspan=2, sticky="w")
+
+    details_text = customtkinter.CTkTextbox(window, font=FONT, height=100, width=560, padx=15, pady=15,activate_scrollbars=True, corner_radius=0, border_spacing=0)
+    details_text.grid(row=5, column=0, columnspan=2, sticky="w")
 
     job_fit_button = Button(window, text="Check job fit")
-    job_fit_button.grid(row=4, column=0)
+    job_fit_button.grid(row=6, column=0)
 
     cover_letter_button = Button(window, text="Generate letter")
-    cover_letter_button.grid(row=4, column=1)
+    cover_letter_button.grid(row=6, column=1)
 
     # OUTPUT
     output_container = Notebook(window)
-    output_container.grid(row=5, column=0, columnspan=2, sticky="w")
+    output_container.grid(row=7, column=0, columnspan=2, sticky="w")
 
     analysis_text = customtkinter.CTkTextbox(window, font=FONT, height=400, width=560, padx=15, pady=15, activate_scrollbars=True, corner_radius=0, border_spacing=0)
     suggestions_text = customtkinter.CTkTextbox(window, font=FONT, height=400, width=560, padx=15, pady=15, activate_scrollbars=True, corner_radius=0, border_spacing=0)
