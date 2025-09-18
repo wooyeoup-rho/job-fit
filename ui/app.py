@@ -1,9 +1,10 @@
 from tkinter.ttk import *
 import sv_ttk
+from ai.ai import analyze_fit, generate_cover_letter
 from ui.helper import apply_theme_to_titlebar
 from ui.textbox import create_textbox
+from pdf_helper.cleaner import clean_text
 from pdf_helper.reader import attach_resume
-
 
 FONT = ("Calibri", 18)
 
@@ -16,22 +17,16 @@ class JobFitApp:
 
         for i in range(8):
             self.window.rowconfigure(i, pad=20)
-
+        self.window.columnconfigure(1, pad=200)
         self.build_ui()
-
 
         sv_ttk.set_theme("dark")
         apply_theme_to_titlebar(window)
 
-    def build_ui(self):
-        # INPUT
-        # self.switch_var = customtkinter.BooleanVar(None, True)
-        # self.theme_switch = customtkinter.CTkSwitch(self.window, text="Dark mode", command=switch_themes, variable=switch_var,
-        #                                        onvalue=True, offvalue=False, border_width=2, bg_color="#1c1c1c",
-        #                                        text_color="white", border_color="gray", fg_color="yellow",
-        #                                        progress_color="#292929", button_color="gray", button_hover_color="gray")
-        # self.theme_switch.grid(row=0, column=1)
+        self.resume_name = None
+        self.resume_text = None
 
+    def build_ui(self):
         # Resume upload
         self.resume_button = Button(self.window, text="Attach Resume", command=self._handle_attach_resume)
         self.resume_button.grid(row=0, column=0, sticky="w")
@@ -46,7 +41,6 @@ class JobFitApp:
         self.job_description_text = create_textbox(self.window)
         self.job_description_text.grid(row=3, column=0, columnspan=2, sticky="w")
 
-
         # Additional information input
         self.details_label = Label(self.window, text="Additional Information:")
         self.details_label.grid(row=4, column=0, columnspan=2, sticky="w")
@@ -55,15 +49,15 @@ class JobFitApp:
         self.details_text.grid(row=5, column=0, columnspan=2, sticky="w")
 
         # Action buttons
-        self.job_fit_button = Button(self.window, text="Check job fit", command=self.analyze_fit)
-        self.job_fit_button.grid(row=6, column=0)
+        self.job_fit_button = Button(self.window, text="Check job fit", command=self.ai_fit)
+        self.job_fit_button.grid(row=6, column=0, sticky="w")
 
-        self.cover_letter_button = Button(self.window, text="Generate letter")
-        self.cover_letter_button.grid(row=6, column=1)
+        self.cover_letter_button = Button(self.window, text="Generate letter", command=self.ai_cover_letter)
+        self.cover_letter_button.grid(row=6, column=1, sticky="w")
 
         # Output notebook
         self.output_container = Notebook(self.window)
-        self.output_container.grid(row=7, column=0, columnspan=2, sticky="w")
+        self.output_container.grid(row=0, column=2, rowspan=6, sticky="w")
 
         self.analysis_tab = self._make_output_tab("ANALYSIS OF FIT", "Analysis")
         self.suggestions_tab = self._make_output_tab("SUGGESTIONS BASED ON YOUR COMMENTS", "Suggestions")
@@ -77,18 +71,48 @@ class JobFitApp:
         return text_widget
 
     def _handle_attach_resume(self):
-        resume_name, resume_text = attach_resume()
-        if resume_name and resume_text:
-            self.resume_label.config(text=resume_name, foreground="green")
-
-            self.analysis_tab.configure(state="normal")
-            self.analysis_tab.delete("1.0", "end")
-            self.analysis_tab.insert("1.0", resume_text)
-            self.analysis_tab.configure(state="disabled")
+        self.resume_name, self.resume_text = attach_resume()
+        if self.resume_name and self.resume_text:
+            self.resume_label.config(text=self.resume_name, foreground="green")
         else:
             self.resume_label.config(text="Error: Attach a PDF file", foreground="red")
 
-    def analyze_fit(self):
-        job_description = self.job_description_text.get("1.0", "end-1c")
-        print("Text: " + job_description)
+    def ai_fit(self):
+        job_desc = clean_text(self.job_description_text.get("1.0", "end-1c"))
+        add_info = clean_text(self.details_text.get("1.0", "end-1c"))
+        resume = clean_text(self.resume_text)
+
+        output = analyze_fit(resume, job_desc, add_info)
+        print(output)
+
+        if "[Analysis of fit]" in output and "[Suggestions]" in output:
+            analysis_seg, suggestion_seg = output.split("[Suggestions]", 1)
+            analysis = analysis_seg.replace("[Analysis of fit]", "").strip()
+            suggestions = suggestion_seg.strip()
+
+            self.suggestions_tab.configure(state="normal")
+            self.suggestions_tab.delete("1.0", "end")
+            self.suggestions_tab.insert("1.0", suggestions)
+            self.suggestions_tab.configure(state="disabled")
+
+        else:
+            analysis = output.strip()
+
+        self.analysis_tab.configure(state="normal")
+        self.analysis_tab.delete("1.0", "end")
+        self.analysis_tab.insert("1.0", analysis)
+        self.analysis_tab.configure(state="disabled")
+
+    def ai_cover_letter(self):
+        job_desc = clean_text(self.job_description_text.get("1.0", "end-1c"))
+        add_info = clean_text(self.details_text.get("1.0", "end-1c"))
+        resume = clean_text(self.resume_text)
+
+        output = generate_cover_letter(resume, job_desc, add_info)
+        print(output)
+
+        self.letter_tab.configure(state="normal")
+        self.letter_tab.delete("1.0", "end")
+        self.letter_tab.insert("1.0", output.strip())
+        self.letter_tab.configure(state="disabled")
 
