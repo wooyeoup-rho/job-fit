@@ -1,10 +1,12 @@
-from tkinter.ttk import *
+from tkinter.ttk import Button, Label, Notebook
+from tkinter import messagebox
 import sv_ttk
 from ai.ai import analyze_fit, generate_cover_letter
-from ui.helper import apply_theme_to_titlebar
-from ui.textbox import create_textbox
+from ai.utils import estimate_cost, token_approximation
 from pdf_helper.cleaner import clean_text
 from pdf_helper.reader import attach_resume
+from ui.helper import apply_theme_to_titlebar
+from ui.textbox import create_textbox
 
 FONT = ("Calibri", 18)
 
@@ -77,42 +79,81 @@ class JobFitApp:
         else:
             self.resume_label.config(text="Error: Attach a PDF file", foreground="red")
 
-    def ai_fit(self):
+    def _confirmation_dialog(self, title):
+        if not self.resume_text and not self.job_description_text.get("1.0", "end-1c"):
+            messagebox.showerror("Error", "Action requires resume and job description.\nMake sure they're both filled out!")
+        else:
+            job_desc, add_info, resume = self._clean_input()
+
+            # Rough approximations of output token (high-end)
+            if "Fit" in title:
+                input_tokens = 100
+                output_tokens = 1500
+                model = "gpt-5-mini"
+            else:
+                input_tokens = 76
+                output_tokens = 1000
+                model = "gpt-5"
+
+            approx_tokens = token_approximation(job_desc + add_info + resume) + input_tokens
+            approx_cost = estimate_cost(approx_tokens, output_tokens, model)
+
+            text_message = f"""
+            There will be a cost associated with this action:
+            
+            Input tokens: {approx_tokens}
+            Output tokens: {output_tokens}
+            Approximate cost: ${approx_cost}
+            
+            Proceed?
+            """
+
+            response = messagebox.askyesno(
+                title=title,
+                message=text_message
+            )
+
+            return response
+
+    def _clean_input(self):
         job_desc = clean_text(self.job_description_text.get("1.0", "end-1c"))
         add_info = clean_text(self.details_text.get("1.0", "end-1c"))
         resume = clean_text(self.resume_text)
 
-        output = analyze_fit(resume, job_desc, add_info)
-        print(output)
+        return job_desc, add_info, resume
 
-        if "[Analysis of fit]" in output and "[Suggestions]" in output:
-            analysis_seg, suggestion_seg = output.split("[Suggestions]", 1)
-            analysis = analysis_seg.replace("[Analysis of fit]", "").strip()
-            suggestions = suggestion_seg.strip()
+    def ai_fit(self):
+        if self._confirmation_dialog("Job Fit Analysis"):
+            job_desc, add_info, resume = self._clean_input()
+            output = analyze_fit(resume, job_desc, add_info)
+            print(output)
 
-            self.suggestions_tab.configure(state="normal")
-            self.suggestions_tab.delete("1.0", "end")
-            self.suggestions_tab.insert("1.0", suggestions)
-            self.suggestions_tab.configure(state="disabled")
+            if "[Analysis of fit]" in output and "[Suggestions]" in output:
+                analysis_seg, suggestion_seg = output.split("[Suggestions]", 1)
+                analysis = analysis_seg.replace("[Analysis of fit]", "").strip()
+                suggestions = suggestion_seg.strip()
 
-        else:
-            analysis = output.strip()
+                self.suggestions_tab.configure(state="normal")
+                self.suggestions_tab.delete("1.0", "end")
+                self.suggestions_tab.insert("1.0", suggestions)
+                self.suggestions_tab.configure(state="disabled")
 
-        self.analysis_tab.configure(state="normal")
-        self.analysis_tab.delete("1.0", "end")
-        self.analysis_tab.insert("1.0", analysis)
-        self.analysis_tab.configure(state="disabled")
+            else:
+                analysis = output.strip()
+
+            self.analysis_tab.configure(state="normal")
+            self.analysis_tab.delete("1.0", "end")
+            self.analysis_tab.insert("1.0", analysis)
+            self.analysis_tab.configure(state="disabled")
 
     def ai_cover_letter(self):
-        job_desc = clean_text(self.job_description_text.get("1.0", "end-1c"))
-        add_info = clean_text(self.details_text.get("1.0", "end-1c"))
-        resume = clean_text(self.resume_text)
+        if self._confirmation_dialog("Cover Letter Generation"):
+            job_desc, add_info, resume = self._clean_input()
+            output = generate_cover_letter(resume, job_desc, add_info)
+            print(output)
 
-        output = generate_cover_letter(resume, job_desc, add_info)
-        print(output)
-
-        self.letter_tab.configure(state="normal")
-        self.letter_tab.delete("1.0", "end")
-        self.letter_tab.insert("1.0", output.strip())
-        self.letter_tab.configure(state="disabled")
+            self.letter_tab.configure(state="normal")
+            self.letter_tab.delete("1.0", "end")
+            self.letter_tab.insert("1.0", output.strip())
+            self.letter_tab.configure(state="disabled")
 

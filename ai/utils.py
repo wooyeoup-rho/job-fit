@@ -1,6 +1,3 @@
-def char_count(text: str) -> int:
-    return len(text)
-
 def token_approximation(text: str) -> int:
     return max(1, len(text) // 4)
 
@@ -30,4 +27,4 @@ def estimate_cost(tokens_input: int, tokens_output: int, model="gpt-5-mini"):
     if model not in rates:
         raise ValueError(f"Unknown model {model}")
 
-    return tokens_input * rates[model]["input"] + tokens_output * rates[model]["output"]
+    return round(tokens_input * rates[model]["input"] + tokens_output * rates[model]["output"], 5)
