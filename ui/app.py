@@ -166,24 +166,24 @@ class JobFitApp:
 
     def _export_all_to_pdf(self):
         pdf = FPDF()
-        pdf.add_page()
+        pdf.set_auto_page_break(auto=True, margin=15)
         pdf.add_font('NotoSerif', '', 'fonts/NotoSerif-Regular.ttf', uni=True)
         pdf.add_font('NotoSerif', 'B', 'fonts/NotoSerif-Bold.ttf', uni=True)
 
-        sections = [
-            ("ANALYSIS OF FIT", self.analysis_tab),
-            ("SUGGESTIONS", self.suggestions_tab),
-            ("RESUME", self.resume_tab),
-            ("COVER LETTER", self.letter_tab)
-        ]
+        for tab_id in self.output_container.tabs():
+            tab_widget = self.window.nametowidget(tab_id)
+            tab_title = self.output_container.tab(tab_id, "text")
 
-        for title, widget in sections:
-            content = widget.get("1.0", "end-1c")
-            pdf.set_font("NotoSerif", "B", 14)
-            pdf.cell(0, 10, title, ln=True)
+            pdf.add_page()
+
+            pdf.set_font("NotoSerif", "B", 16)
+            pdf.cell(0, 10, tab_title, ln=True)
+            pdf.ln(5)
+
+            content = tab_widget.get("1.0", "end-1c")
+
             pdf.set_font("NotoSerif", size=12)
             pdf.multi_cell(0, 10, content)
-            pdf.ln(10)
 
         pdf.output("all_tabs.pdf")
 
