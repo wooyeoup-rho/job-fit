@@ -31,3 +31,8 @@ old/
 
 # Environment variables
 .env
+
+# Misc files
+*.pkl
+*.pdf
+todo.md

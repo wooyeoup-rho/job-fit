@@ -32,6 +32,22 @@ def analyze_fit(resume_text, job_description, additional_notes=""):
 
     return response.output_text
 
+def generate_resume(resume_text, job_description, additional_notes=""):
+    output_instructions = "Adjust the provided resume for the job description. Prioritize fitting it on one page."
+    prompt = prompt_builder(resume_text, job_description, additional_notes, output_instructions)
+
+    response = client.responses.create(
+        model="gpt-5",
+        input=[
+            {
+                "role": "user",
+                "content": prompt
+            }
+        ]
+    )
+
+    return response.output_text
+
 def generate_cover_letter(resume_text, job_description, additional_notes=""):
     output_instructions = "Write a cover letter for the job description using the provided details."
     prompt = prompt_builder(resume_text, job_description, additional_notes, output_instructions)
