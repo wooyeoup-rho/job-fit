@@ -1,0 +1,7 @@
+customtkinter==5.2.2
+fpdf==1.7.2
+openai==1.108.1
+pdfplumber==0.11.7
+python-dotenv==1.1.1
+pywinstyles==1.8
+sv_ttk==2.6.1

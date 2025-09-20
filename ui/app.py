@@ -100,44 +100,41 @@ class JobFitApp:
             self.resume_label.config(text="Error: Attach a PDF file", foreground="red")
 
     def _confirmation_dialog(self, title):
-        if not self.resume_text or not self.job_description_text.get("1.0", "end-1c"):
-            messagebox.showerror("Error", "Action requires resume and job description.\nMake sure they're both filled out!")
+        job_desc, add_info, resume = self._clean_input()
+
+        # Rough approximations of output token (high-end)
+        if title == "Job Fit Analysis":
+            input_tokens = 100
+            output_tokens = 1500
+            model = "gpt-5-mini"
+        elif title == "Generate Resume":
+            input_tokens = 90
+            output_tokens = 1200
+            model = "gpt-5"
         else:
-            job_desc, add_info, resume = self._clean_input()
+            input_tokens = 76
+            output_tokens = 1000
+            model = "gpt-5"
 
-            # Rough approximations of output token (high-end)
-            if title == "Job Fit Analysis":
-                input_tokens = 100
-                output_tokens = 1500
-                model = "gpt-5-mini"
-            elif title == "Generate Resume":
-                input_tokens = 90
-                output_tokens = 1200
-                model = "gpt-5"
-            else:
-                input_tokens = 76
-                output_tokens = 1000
-                model = "gpt-5"
+        approx_tokens = token_approximation(job_desc + add_info + resume) + input_tokens
+        approx_cost = estimate_cost(approx_tokens, output_tokens, model)
 
-            approx_tokens = token_approximation(job_desc + add_info + resume) + input_tokens
-            approx_cost = estimate_cost(approx_tokens, output_tokens, model)
+        text_message = f"""
+        There will be a cost associated with this action:
+        
+        Input tokens: {approx_tokens}
+        Output tokens: {output_tokens}
+        Approximate cost: ${approx_cost}
+        
+        Proceed?
+        """
 
-            text_message = f"""
-            There will be a cost associated with this action:
-            
-            Input tokens: {approx_tokens}
-            Output tokens: {output_tokens}
-            Approximate cost: ${approx_cost}
-            
-            Proceed?
-            """
+        response = messagebox.askyesno(
+            title=title,
+            message=text_message
+        )
 
-            response = messagebox.askyesno(
-                title=title,
-                message=text_message
-            )
-
-            return response
+        return response
 
     def _clean_input(self):
         job_desc = clean_text(self.job_description_text.get("1.0", "end-1c"))
@@ -155,9 +152,13 @@ class JobFitApp:
             button.config(state=tkinter.DISABLED)
 
     def _process_click(self, function):
-        threading.Thread(
-            target=self._run_async, args=(function,), daemon=True
-        ).start()
+        if not self.resume_text or not self.job_description_text.get("1.0", "end-1c"):
+            messagebox.showerror("Error",
+                                 "Action requires resume and job description.\nMake sure they're both filled out!")
+        else:
+            threading.Thread(
+                target=self._run_async, args=(function,), daemon=True
+            ).start()
 
     def _run_async(self, function):
         self._disable_buttons()
