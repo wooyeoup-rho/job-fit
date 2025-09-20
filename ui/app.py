@@ -1,6 +1,9 @@
+import tkinter
 from tkinter.ttk import Button, Frame, Label, Notebook
 from tkinter import messagebox, Menu
 from fpdf import FPDF
+import asyncio
+import threading
 import sv_ttk
 from ai.ai import analyze_fit, generate_cover_letter, generate_resume
 from ai.utils import estimate_cost, token_approximation
@@ -60,13 +63,14 @@ class JobFitApp:
         self.button_frame = Frame(self.window)
         self.button_frame.grid(row=6, column=0, sticky="ew")
 
-        self.job_fit_button = Button(self.button_frame, text="Check job fit", command=self.ai_fit)
+        # self.job_fit_button = Button(self.button_frame, text="Check job fit", command=self.ai_fit)
+        self.job_fit_button = Button(self.button_frame, text="Check job fit", command=lambda: self._process_click("Job Fit Analysis"))
         self.job_fit_button.grid(row=6, column=0, padx=5)
 
-        self.generate_resume_button = Button(self.button_frame, text="Generate resume", command=self.ai_resume)
+        self.generate_resume_button = Button(self.button_frame, text="Generate resume", command=lambda: self._process_click("Generate Resume"))
         self.generate_resume_button.grid(row=6, column=2, padx=5)
 
-        self.cover_letter_button = Button(self.button_frame, text="Generate letter", command=self.ai_cover_letter)
+        self.cover_letter_button = Button(self.button_frame, text="Generate letter", command=lambda: self._process_click("Generate Cover Letter"))
         self.cover_letter_button.grid(row=6, column=3, padx=5)
 
         self.export_button = Button(self.window, text="Export", command=self._show_export_menu)
@@ -142,6 +146,35 @@ class JobFitApp:
 
         return job_desc, add_info, resume
 
+    def _enable_buttons(self):
+        for button in self.button_frame.winfo_children():
+            button.config(state=tkinter.NORMAL)
+
+    def _disable_buttons(self):
+        for button in self.button_frame.winfo_children():
+            button.config(state=tkinter.DISABLED)
+
+    def _process_click(self, function):
+        threading.Thread(
+            target=self._run_async, args=(function,), daemon=True
+        ).start()
+
+    def _run_async(self, function):
+        self._disable_buttons()
+        job_desc, add_info, resume = self._clean_input()
+
+        if function == "Job Fit Analysis" and self._confirmation_dialog("Job Fit Analysis"):
+            result = asyncio.run(analyze_fit(resume, job_desc, add_info))
+            self.window.after(0, self.ai_fit, result)
+        elif function == "Generate Resume" and self._confirmation_dialog("Generate Resume"):
+            result = asyncio.run(generate_resume(resume, job_desc, add_info))
+            self.window.after(0, self.ai_resume, result)
+        elif function == "Generate Cover Letter" and self._confirmation_dialog("Generate Cover Letter"):
+            result = asyncio.run(generate_cover_letter(resume, job_desc, add_info))
+            self.window.after(0, self.ai_cover_letter, result)
+
+        self._enable_buttons()
+
     def _show_export_menu(self):
         menu = Menu(self.window, tearoff=0)
         menu.add_command(label="Export Current Tab", command=self._export_current_to_pdf)
@@ -187,49 +220,34 @@ class JobFitApp:
 
         pdf.output("all_tabs.pdf")
 
-    def ai_fit(self):
-        if self._confirmation_dialog("Job Fit Analysis"):
-            job_desc, add_info, resume = self._clean_input()
-            output = analyze_fit(resume, job_desc, add_info)
-            print(output)
+    def ai_fit(self, output):
+        if "[Analysis of fit]" in output and "[Suggestions]" in output:
+            analysis_seg, suggestion_seg = output.split("[Suggestions]", 1)
+            analysis = analysis_seg.replace("[Analysis of fit]", "").strip()
+            suggestions = suggestion_seg.strip()
 
-            if "[Analysis of fit]" in output and "[Suggestions]" in output:
-                analysis_seg, suggestion_seg = output.split("[Suggestions]", 1)
-                analysis = analysis_seg.replace("[Analysis of fit]", "").strip()
-                suggestions = suggestion_seg.strip()
+            self.suggestions_tab.configure(state="normal")
+            self.suggestions_tab.delete("1.0", "end")
+            self.suggestions_tab.insert("1.0", suggestions)
+            self.suggestions_tab.configure(state="disabled")
 
-                self.suggestions_tab.configure(state="normal")
-                self.suggestions_tab.delete("1.0", "end")
-                self.suggestions_tab.insert("1.0", suggestions)
-                self.suggestions_tab.configure(state="disabled")
+        else:
+            analysis = output.strip()
 
-            else:
-                analysis = output.strip()
+        self.analysis_tab.configure(state="normal")
+        self.analysis_tab.delete("1.0", "end")
+        self.analysis_tab.insert("1.0", analysis)
+        self.analysis_tab.configure(state="disabled")
 
-            self.analysis_tab.configure(state="normal")
-            self.analysis_tab.delete("1.0", "end")
-            self.analysis_tab.insert("1.0", analysis)
-            self.analysis_tab.configure(state="disabled")
+    def ai_resume(self, output):
+        self.resume_tab.configure(state="normal")
+        self.resume_tab.delete("1.0", "end")
+        self.resume_tab.insert("1.0", output.strip())
+        self.resume_tab.configure(state="disabled")
 
-    def ai_resume(self):
-        if self._confirmation_dialog("Generate Resume"):
-            job_desc, add_info, resume = self._clean_input()
-            output = generate_resume(resume, job_desc, add_info)
-            print(output)
-
-            self.resume_tab.configure(state="normal")
-            self.resume_tab.delete("1.0", "end")
-            self.resume_tab.insert("1.0", output.strip())
-            self.resume_tab.configure(state="disabled")
-
-    def ai_cover_letter(self):
-        if self._confirmation_dialog("Generate Cover Letter"):
-            job_desc, add_info, resume = self._clean_input()
-            output = generate_cover_letter(resume, job_desc, add_info)
-            print(output)
-
-            self.letter_tab.configure(state="normal")
-            self.letter_tab.delete("1.0", "end")
-            self.letter_tab.insert("1.0", output.strip())
-            self.letter_tab.configure(state="disabled")
+    def ai_cover_letter(self, output):
+        self.letter_tab.configure(state="normal")
+        self.letter_tab.delete("1.0", "end")
+        self.letter_tab.insert("1.0", output.strip())
+        self.letter_tab.configure(state="disabled")
 
