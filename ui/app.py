@@ -34,10 +34,9 @@ class JobFitApp:
         for i in range(8):
             self.window.rowconfigure(i, pad=20)
 
-        # Configure grid: [0=inputs | 1=spacer | 2=outputs]
-        self.window.columnconfigure(0, weight=1)  # left-side (inputs)
-        self.window.columnconfigure(1, weight=0, minsize=40)  # spacer
-        self.window.columnconfigure(2, weight=2)  # right-side (output)
+        self.window.columnconfigure(0, weight=1)
+        self.window.columnconfigure(1, weight=0, minsize=40)
+        self.window.columnconfigure(2, weight=2)
 
         self.build_ui()
 
