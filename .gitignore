@@ -26,9 +26,6 @@ Thumbs.db  # Windows
 # Data file
 unknown_words.csv
 
-# Misc folders
-old/
-
 # Environment variables
 .env
 

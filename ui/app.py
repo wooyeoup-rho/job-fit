@@ -1,23 +1,33 @@
-import tkinter
-from tkinter.ttk import Button, Frame, Label, Notebook
-from tkinter import messagebox, Menu
-from fpdf import FPDF
 import asyncio
 import threading
+import tkinter
+import sys
 import sv_ttk
 from ai.ai import analyze_fit, generate_cover_letter, generate_resume
 from ai.utils import estimate_cost, token_approximation
+from fpdf import FPDF
 from pdf_helper.cleaner import clean_text
 from pdf_helper.reader import attach_resume
-from ui.helper import apply_theme_to_titlebar
+from tkinter.ttk import Button, Label, Notebook
+from tkinter import messagebox, Menu, PhotoImage
+from ui.helper import apply_theme_to_titlebar, generate_file_name, resource_path
 from ui.textbox import create_textbox
 
 FONT = ("Calibri", 18)
 
 class JobFitApp:
     def __init__(self, window):
+        if sys.platform.startswith("win"):
+            import ctypes
+            myappid = u"wooyeoup.jobfit.v1"
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+
         self.window = window
         self.window.title("Job Fit")
+        icon_photo = PhotoImage(file=resource_path("assets/icon.png"))
+        self.window.iconphoto(False, icon_photo)
+        self.window.wm_iconphoto(True, icon_photo)
+
         self.window.config(padx=20, pady=20)
         self.window.resizable(False, False)
 
@@ -42,7 +52,7 @@ class JobFitApp:
         self.attach_resume_button = Button(self.window, text="Attach Resume", command=self._handle_attach_resume)
         self.attach_resume_button.grid(row=0, column=0, sticky="w")
 
-        self.resume_label = Label(self.window, text="Sample text", foreground="gray")
+        self.resume_label = Label(self.window, text="", foreground="gray")
         self.resume_label.grid(row=1, column=0, sticky="w")
 
         # Job description input
@@ -60,18 +70,8 @@ class JobFitApp:
         self.details_text.grid(row=5, column=0, sticky="nsew")
 
         # Action buttons
-        self.button_frame = Frame(self.window)
-        self.button_frame.grid(row=6, column=0, sticky="ew")
-
-        # self.job_fit_button = Button(self.button_frame, text="Check job fit", command=self.ai_fit)
-        self.job_fit_button = Button(self.button_frame, text="Check job fit", command=lambda: self._process_click("Job Fit Analysis"))
-        self.job_fit_button.grid(row=6, column=0, padx=5)
-
-        self.generate_resume_button = Button(self.button_frame, text="Generate resume", command=lambda: self._process_click("Generate Resume"))
-        self.generate_resume_button.grid(row=6, column=2, padx=5)
-
-        self.cover_letter_button = Button(self.button_frame, text="Generate letter", command=lambda: self._process_click("Generate Cover Letter"))
-        self.cover_letter_button.grid(row=6, column=3, padx=5)
+        self.run_button = Button(self.window, text="Run", command=self._show_run_menu)
+        self.run_button.grid(row=6, column=0, sticky="w")
 
         self.export_button = Button(self.window, text="Export", command=self._show_export_menu)
         self.export_button.grid(row=6, column=2, sticky="w")
@@ -111,9 +111,13 @@ class JobFitApp:
             input_tokens = 90
             output_tokens = 1200
             model = "gpt-5"
-        else:
+        elif title == "Generate Cover Letter":
             input_tokens = 76
             output_tokens = 1000
+            model = "gpt-5"
+        else:
+            input_tokens = 266
+            output_tokens = 3700
             model = "gpt-5"
 
         approx_tokens = token_approximation(job_desc + add_info + resume) + input_tokens
@@ -144,12 +148,10 @@ class JobFitApp:
         return job_desc, add_info, resume
 
     def _enable_buttons(self):
-        for button in self.button_frame.winfo_children():
-            button.config(state=tkinter.NORMAL)
+        self.run_button.config(state=tkinter.NORMAL)
 
     def _disable_buttons(self):
-        for button in self.button_frame.winfo_children():
-            button.config(state=tkinter.DISABLED)
+        self.run_button.config(state=tkinter.DISABLED)
 
     def _process_click(self, function):
         if not self.resume_text or not self.job_description_text.get("1.0", "end-1c"):
@@ -173,6 +175,13 @@ class JobFitApp:
         elif function == "Generate Cover Letter" and self._confirmation_dialog("Generate Cover Letter"):
             result = asyncio.run(generate_cover_letter(resume, job_desc, add_info))
             self.window.after(0, self.ai_cover_letter, result)
+        elif function == "Run All" and self._confirmation_dialog("Run All"):
+            analysis_output = asyncio.run(analyze_fit(resume, job_desc, add_info))
+            resume_output = asyncio.run(generate_resume(resume, job_desc, add_info))
+            letter_output = asyncio.run(generate_cover_letter(resume, job_desc, add_info))
+            self.window.after(0, self.ai_fit, analysis_output)
+            self.window.after(0, self.ai_resume, resume_output)
+            self.window.after(0, self.ai_cover_letter, letter_output)
 
         self._enable_buttons()
 
@@ -180,6 +189,14 @@ class JobFitApp:
         menu = Menu(self.window, tearoff=0)
         menu.add_command(label="Export Current Tab", command=self._export_current_to_pdf)
         menu.add_command(label="Export All Tabs", command=self._export_all_to_pdf)
+        menu.tk_popup(self.window.winfo_pointerx(), self.window.winfo_pointery())
+
+    def _show_run_menu(self):
+        menu = Menu(self.window, tearoff=0)
+        menu.add_command(label="Run Analysis", command=lambda: self._process_click("Job Fit Analysis"))
+        menu.add_command(label="Run Resume Generation", command=lambda: self._process_click("Generate Resume"))
+        menu.add_command(label="Run Cover Letter Generation", command=lambda: self._process_click("Generate Cover Letter"))
+        menu.add_command(label="Run All", command=lambda: self._process_click("Run All"))
         menu.tk_popup(self.window.winfo_pointerx(), self.window.winfo_pointery())
 
     def _export_current_to_pdf(self):
@@ -195,8 +212,9 @@ class JobFitApp:
         pdf.set_font("NotoSerif", size=12)
         pdf.multi_cell(0, 10, content)
 
-        filename = f"{tab_title.replace(' ', '_')}.pdf"
-        pdf.output(filename)
+        base_name = tab_title.replace(' ', '_')
+        filepath = generate_file_name(base_name)
+        pdf.output(filepath)
 
     def _export_all_to_pdf(self):
         pdf = FPDF()
@@ -219,7 +237,8 @@ class JobFitApp:
             pdf.set_font("NotoSerif", size=12)
             pdf.multi_cell(0, 10, content)
 
-        pdf.output("all_tabs.pdf")
+        filepath = generate_file_name("All")
+        pdf.output(filepath)
 
     def ai_fit(self, output):
         if "[Analysis of fit]" in output and "[Suggestions]" in output:
