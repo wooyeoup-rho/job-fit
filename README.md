@@ -5,6 +5,12 @@ The app uses **Tkinter** for the user interface and **OpenAI's API** for the ana
 
 ---
 
+### Demo
+
+https://github.com/user-attachments/assets/d0ee2494-88e9-4e19-ba74-5fda571b3598
+
+---
+
 ### Requirements
 1. Python
 2. openai api key
